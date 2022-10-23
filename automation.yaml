@@ -1,0 +1,37 @@
+## KIDS ROOM
+### SET HOME
+- id: '161290233344'
+  alias: T_set HOME KIDS
+  description: Increases the desired target temperature to HOME preset (21.8C)
+  trigger:
+  - platform: time
+    at: '14:30:00'  # when kids come back from school
+  condition:
+    - condition: state
+      entity_id: input_boolean.ui_automation_enable_heating_kidsroom
+      state: 'on'
+  action:
+  - service: climate.set_preset_mode
+    data:
+      preset_mode: home
+    target:
+      entity_id: climate.kids_room_thermostat
+  mode: single
+### AWAY
+- id: '1612902443899'
+  alias: T_set AWAY KIDS
+  description: decreases the desired temparature to AWAY (18C)
+  trigger:
+  - platform: time
+    at: '15:00'  # + 30 min is enough on this room 
+  condition:
+    - condition: state
+      entity_id: input_boolean.ui_automation_enable_heating_kidsroom
+      state: 'on'
+  action:
+  - service: climate.set_preset_mode
+    data:
+      preset_mode: away
+    target:
+      entity_id: climate.kids_room_thermostat
+  mode: single
