@@ -12,3 +12,4 @@ home assistant and esphome based thermostat for underfloor heating.
 
 ## Automation 
 in Home Assistant, I turn HOME and AWAY with an automation. See anutomation.yaml file. 
+Please note that the automation can be controlled with a boolean value. see input_boolean.yaml
