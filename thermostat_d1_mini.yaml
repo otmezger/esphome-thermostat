@@ -1,0 +1,159 @@
+esphome:
+  name: heating-kids-d1-mini
+  platform: ESP8266
+  board: d1_mini  # for the D1 mini
+
+substitutions:
+  devicename: "heating-kids-d1-mini"
+
+wifi:
+  fast_connect: true
+  ssid: !secret wifi_home_ssid
+  password: !secret wifi_home_password
+  power_save_mode: LIGHT
+  # power_save_mode: HIGH
+  manual_ip:
+    # set IP manually, so that it will connect faster. 
+    # remove this block on first run, to get a new IP
+    static_ip: 192.168.0.74
+    gateway: 192.168.0.1
+    subnet: 255.255.255.0
+
+
+# Enable logging
+logger:
+  level: DEBUG
+
+
+mqtt:
+  id: mqtt_cli
+  broker: !secret homeassistant_ip  #  home assistant's local IP 
+  username: !secret homeassistant_mqtt_username
+  password: !secret homeassistant_mqtt_password
+  birth_message:
+  will_message:
+
+
+ota:
+  safe_mode: True
+  password: !secret ota_api_password
+
+deep_sleep:
+  # not used yet... but ideally the sensor implements deep sleep
+  id: sleepy
+
+#1-wire BS18b20
+dallas:
+  - pin: GPIO04  # D2
+    id: dallashub
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi RSSI Kids Room"
+    id: wifirssi
+
+  - platform: dallas
+    address: 0xf50300a2794ef628  # replace with your own sensor ID
+    name: "Kids Room Temperature"
+    id: temperature_kidsroom
+
+binary_sensor:
+  - platform: gpio
+    id: party_mode_button
+    pin:
+      number: D3
+      inverted: true
+    name: "Party Mode"
+    on_click:
+    # Medium press
+    # if thermostat is on (from HA), then set preset to HOME for 30 min. then back to AWAY
+    - min_length: 500ms        
+      max_length: 2000ms
+      then:
+        - if:
+            condition:
+              # Means: HEATER is ON
+              lambda: 'return id(themostat_kidsroom).mode == 3;'
+            then:
+              - lambda: |-
+                  auto call = id(themostat_kidsroom).make_call();
+                  call.set_preset("HOME");
+                  // etc. see API reference
+                  call.perform();
+                  ESP_LOGD("button", "mode: %d", id(themostat_kidsroom).mode);
+              - delay: 30 min
+              # - delay: 10 s
+              - lambda: |-
+                  auto call = id(themostat_kidsroom).make_call();
+                  call.set_preset("AWAY");
+                  // etc. see API reference
+                  call.perform();
+                  ESP_LOGD("button", "mode: %d", id(themostat_kidsroom).mode);
+            else:
+              - lambda: |-
+                  ESP_LOGD("button", "Heater is OFF. skipping . Mode: %d", id(themostat_kidsroom).mode);
+        # Some action
+    # - min_length: 1000ms      # Long press
+    #   max_length: 4000ms
+    #   then:
+    #
+
+        # Some other action
+    # - min_length: 3000ms        # Long press
+    #   max_length: 10000ms
+    #   then:
+    #     -
+
+    on_double_click:
+    # Set preset to AWAY
+      - then:
+        - lambda: |-
+            ESP_LOGD("button", "Double Click");
+            auto call = id(themostat_kidsroom).make_call();
+            call.set_preset("AWAY");
+            // etc. see API reference
+            call.perform();
+            ESP_LOGD("button", "mode: %d", id(themostat_kidsroom).mode);
+
+
+
+output:
+  - platform: gpio
+    # - platform: slow_pwm. 
+    # Idea/ TODO: How can I define a cycle of 5 min ON/ 5 min OFF for the underfloor heating thermostat? 
+    pin: GPIO5  # D1
+    id: 'heater_relais_pin_out'
+
+switch:
+  - platform: output
+    name: "Kids Room Heating Switch"
+    id: heater_switch_kidsroom
+    output: 'heater_relais_pin_out'
+
+climate:
+  - platform: thermostat
+    name: Kids Room Thermostat
+    id: themostat_kidsroom
+    sensor: temperature_kidsroom
+    heat_deadband: 0.1
+    heat_overrun: 0
+    min_idle_time: 15s
+    min_heating_run_time: 15s
+    min_heating_off_time: 15s
+    # default_target_temperature_low: 18
+    heat_action:
+      - switch.turn_on: heater_switch_kidsroom
+    idle_action:
+      - switch.turn_off: heater_switch_kidsroom
+    preset:
+      - name: home
+        default_target_temperature_low: 21.8
+      - name: away
+        default_target_temperature_low: 18
+
+    visual:
+      min_temperature: 18
+      max_temperature: 25
+      temperature_step: 0.1
+    retain: true
+    
